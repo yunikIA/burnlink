@@ -30,7 +30,6 @@
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
       allowfullscreen
     ></iframe>
-    <!-- Fallback: se muestra si el sitio bloquea iframes -->
     <div id="iframe-fallback">
       <div style="font-size:56px;margin-bottom:16px;">⚠️</div>
       <h2 class="redirect-title" style="font-size:22px;">Este sitio no permite vista previa</h2>
@@ -67,6 +66,7 @@
       <p class="tagline">Links que se autodestruyen</p>
     </header>
 
+    <!-- Form Card -->
     <div class="card">
       <p class="section-label">// nuevo link</p>
 
@@ -126,23 +126,22 @@
     <div class="result-card" id="result-card">
       <div class="result-header">
         <div class="status-dot"></div>
-        <span>Link activo</span>
+        <span>Link activo — copialo antes de que expire</span>
       </div>
       <div class="link-display">
         <span class="link-text" id="generated-link"></span>
         <button class="btn-copy" id="copy-btn">Copiar</button>
       </div>
       <div class="meta-row">
-        <div class="meta-chip">⏱ Expira: <strong id="expiry-label"></strong></div>
+        <div class="meta-chip">⏱ Expira en: <strong id="expiry-label"></strong></div>
         <div class="meta-chip" id="oneuse-chip">🔥 1 sola vez</div>
       </div>
     </div>
 
-    <!-- History -->
+    <!-- History — solo lectura -->
     <section class="history-section" id="history-section">
       <div class="history-header">
-        <span class="history-title">// mis links</span>
-        <button class="btn-clear" id="btn-clear">Limpiar todo</button>
+        <span class="history-title">// links recientes</span>
       </div>
       <div id="links-list"></div>
     </section>

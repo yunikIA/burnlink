@@ -1,5 +1,6 @@
 /* ============================================================
    BurnLink — app.js  (Firebase Firestore + iframe viewer)
+   Los usuarios NO pueden borrar links. Solo el admin puede.
    ============================================================ */
 
 'use strict';
@@ -11,7 +12,6 @@ const linksCol = db.collection('burnlinks');
 /* ── State ── */
 let selectedSeconds = 3600;
 let localLinks      = [];
-let unsubscribe     = null;
 
 /* ══════════════════════════════════════════════
    HELPERS
@@ -42,7 +42,7 @@ function formatCountdown(ms) {
 }
 
 function getBaseUrl() {
-  return window.location.origin + window.location.pathname;
+  return window.location.origin + '/';
 }
 
 function showToast(msg, type = '') {
@@ -73,7 +73,7 @@ document.querySelectorAll('.dur-btn').forEach(btn => {
   btn.addEventListener('click', function () {
     document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
-    const val     = this.dataset.seconds;
+    const val      = this.dataset.seconds;
     const customEl = document.getElementById('custom-duration');
     if (val === 'custom') {
       customEl.classList.add('visible');
@@ -125,10 +125,13 @@ async function generateLink() {
   const id            = generateId();
   const expiresAt     = Date.now() + secs * 1000;
 
-  const linkData = { id, url, expiresAt, oneUse, showCountdown, used: false, created: Date.now(), duration: secs };
+  const linkData = {
+    id, url, expiresAt, oneUse, showCountdown,
+    used: false, created: Date.now(), duration: secs,
+  };
 
-  const btnGen      = document.getElementById('btn-generate');
-  btnGen.disabled   = true;
+  const btnGen       = document.getElementById('btn-generate');
+  btnGen.disabled    = true;
   btnGen.textContent = 'Guardando...';
 
   try {
@@ -180,48 +183,22 @@ function copyLink() {
 }
 
 /* ══════════════════════════════════════════════
-   DELETE / CLEAR
-══════════════════════════════════════════════ */
-
-async function deleteLink(id) {
-  try {
-    await linksCol.doc(id).delete();
-    showToast('Link eliminado.', 'success');
-  } catch (err) {
-    console.error('Error eliminando:', err);
-    showToast('Error al eliminar.', 'error');
-  }
-}
-
-async function clearHistory() {
-  if (!localLinks.length) return;
-  if (!confirm('¿Borrar todos los links?')) return;
-  try {
-    const batch = db.batch();
-    localLinks.forEach(l => batch.delete(linksCol.doc(l.id)));
-    await batch.commit();
-    document.getElementById('result-card').classList.remove('visible');
-    showToast('Historial limpiado.', 'success');
-  } catch (err) {
-    console.error('Error limpiando:', err);
-    showToast('Error al limpiar.', 'error');
-  }
-}
-
-/* ══════════════════════════════════════════════
-   RENDER HISTORY
+   RENDER HISTORY — solo lectura, sin botones de borrar
 ══════════════════════════════════════════════ */
 
 function renderHistory() {
   const container = document.getElementById('links-list');
   const now       = Date.now();
 
-  if (!localLinks.length) {
-    container.innerHTML = '<div class="empty-state">// sin links generados aún</div>';
+  // Mostrar solo los últimos 10 links generados en esta sesión
+  const toShow = localLinks.slice(0, 10);
+
+  if (!toShow.length) {
+    container.innerHTML = '<div class="empty-state">// tus links generados aparecen acá</div>';
     return;
   }
 
-  container.innerHTML = localLinks.map(link => {
+  container.innerHTML = toShow.map(link => {
     const expired   = now > link.expiresAt || (link.oneUse && link.used);
     const remaining = link.expiresAt - now;
     const burnUrl   = getBaseUrl() + '?id=' + link.id;
@@ -240,7 +217,6 @@ function renderHistory() {
         </div>
         <div class="link-item-actions">
           ${rightSide}
-          <button class="btn-delete" title="Eliminar" onclick="deleteLink('${link.id}')">✕</button>
         </div>
       </div>`;
   }).join('');
@@ -265,27 +241,23 @@ setInterval(() => {
 }, 1000);
 
 /* ══════════════════════════════════════════════
-   FIRESTORE LISTENER
+   FIRESTORE LISTENER — solo los 10 más recientes
 ══════════════════════════════════════════════ */
 
 function startListener() {
-  unsubscribe = linksCol
+  linksCol
     .orderBy('created', 'desc')
+    .limit(10)
     .onSnapshot(snapshot => {
       localLinks = snapshot.docs.map(doc => doc.data());
       renderHistory();
     }, err => {
       console.error('Firestore listener error:', err);
-      showToast('Error de conexión con la base de datos.', 'error');
     });
 }
 
 /* ══════════════════════════════════════════════
    IFRAME VIEWER
-   - Intenta mostrar el contenido en un iframe
-   - Si el sitio bloquea iframes (X-Frame-Options),
-     el iframe dispara un error y hacemos fallback
-     a redirección directa
 ══════════════════════════════════════════════ */
 
 function openInIframe(url) {
@@ -295,23 +267,10 @@ function openInIframe(url) {
 
   overlay.classList.add('active');
 
-  // Timeout: si en 5 segundos el iframe no cargó nada útil
-  // (muchos sitios bloquean silenciosamente), hacemos fallback
   let loaded = false;
 
-  frame.onload = () => {
-    loaded = true;
-    // Intentar leer el contenido — si hay error de cross-origin
-    // significa que cargó pero en un dominio diferente (OK)
-    // Si el sitio bloquea X-Frame-Options, el onload NO se dispara
-  };
-
-  // Detectar bloqueo por X-Frame-Options:
-  // El frame queda vacío y onload nunca se dispara en ~3s
   const blockTimer = setTimeout(() => {
     if (!loaded) {
-      // Fallback: redirigir directamente
-      console.warn('iframe bloqueado, redirigiendo directamente');
       frame.style.display = 'none';
       fallback.classList.add('active');
 
@@ -328,10 +287,8 @@ function openInIframe(url) {
     }
   }, 3000);
 
-  // Asignar src DESPUÉS de configurar los handlers
   frame.src = url;
 
-  // Si cargó antes del timer, cancelar el fallback
   frame.onload = () => {
     loaded = true;
     clearTimeout(blockTimer);
@@ -368,7 +325,6 @@ async function checkForBurnLink() {
       return;
     }
 
-    // Marcar como usado (transacción atómica para one-use)
     if (link.oneUse) {
       try {
         await db.runTransaction(async tx => {
@@ -388,7 +344,6 @@ async function checkForBurnLink() {
 
     setLoading(false);
 
-    // Mostrar con cuenta regresiva o directo
     if (link.showCountdown) {
       const countOverlay = document.getElementById('redirect-overlay');
       countOverlay.classList.add('active');
@@ -402,13 +357,10 @@ async function checkForBurnLink() {
         if (count <= 0) {
           clearInterval(interval);
           countOverlay.classList.remove('active');
-          // Abrir en iframe (URL oculta en barra de dirección)
           openInIframe(link.url);
         }
       }, 1000);
-
     } else {
-      // Sin countdown, directo al iframe
       openInIframe(link.url);
     }
 
@@ -425,7 +377,6 @@ async function checkForBurnLink() {
 
 document.getElementById('btn-generate').addEventListener('click', generateLink);
 document.getElementById('copy-btn').addEventListener('click', copyLink);
-document.getElementById('btn-clear').addEventListener('click', clearHistory);
 document.getElementById('dest-url').addEventListener('keydown', e => {
   if (e.key === 'Enter') generateLink();
 });
