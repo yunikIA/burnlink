@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BurnLink — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ── Admin-specific styles ── */
+
+    .admin-topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      background: rgba(10,10,10,.95);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+
+    .admin-topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .admin-badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(255,59,31,.10);
+      border: 1px solid rgba(255,59,31,.25);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .admin-topbar-logo {
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -1px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .admin-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .admin-user img {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+    }
+
+    .admin-user-name {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+    }
+
+    .btn-logout:hover {
+      color: var(--accent);
+      border-color: rgba(255,59,31,.4);
+    }
+
+    /* ── Login screen ── */
+    #login-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 200;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    #login-screen.active { display: flex; }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 40px;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .login-flame { font-size: 48px; margin-bottom: 20px; }
+
+    .login-title {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 6px;
+    }
+
+    .login-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    .btn-google {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #fff;
+      border: none;
+      border-radius: 12px;
+      color: #333;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 16px 24px;
+      cursor: pointer;
+      transition: box-shadow .2s, transform .1s;
+    }
+
+    .btn-google:hover {
+      box-shadow: 0 4px 20px rgba(255,255,255,.15);
+      transform: translateY(-1px);
+    }
+
+    .btn-google:active { transform: translateY(0); }
+
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .login-note {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 20px;
+      letter-spacing: 1px;
+    }
+
+    /* ── Access denied ── */
+    #denied-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 200;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    #denied-screen.active { display: flex; }
+
+    /* ── Admin content ── */
+    #admin-content {
+      display: none;
+      padding-top: 80px;
+    }
+
+    #admin-content.active { display: block; }
+
+    .admin-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .admin-header {
+      margin-bottom: 32px;
+      animation: fadeDown .5s ease both;
+    }
+
+    .admin-header h2 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 4px;
+    }
+
+    .admin-header p {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+    }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+      animation: fadeUp .5s .1s ease both;
+      opacity: 0;
+      animation-fill-mode: both;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 24px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-family: var(--mono);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-number.accent { color: var(--accent); }
+    .stat-number.green  { color: var(--green);  }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ── Toolbar ── */
+    .admin-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+      animation: fadeUp .5s .15s ease both;
+      opacity: 0;
+      animation-fill-mode: both;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .filter-btn:hover { border-color: #444; color: var(--text); }
+    .filter-btn.active {
+      background: rgba(255,59,31,.10);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn-delete-all {
+      background: rgba(255,59,31,.08);
+      border: 1px solid rgba(255,59,31,.2);
+      border-radius: 8px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .btn-delete-all:hover { background: rgba(255,59,31,.18); }
+
+    /* ── Admin link table ── */
+    .admin-links {
+      animation: fadeUp .5s .2s ease both;
+      opacity: 0;
+      animation-fill-mode: both;
+    }
+
+    .admin-link-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      transition: border-color .2s;
+    }
+
+    .admin-link-item:hover { border-color: #333; }
+
+    .admin-link-item.expired {
+      opacity: .45;
+      border-style: dashed;
+    }
+
+    .admin-link-main { min-width: 0; }
+
+    .admin-link-dest {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+    }
+
+    .admin-link-item.expired .admin-link-dest { color: var(--muted); }
+
+    .admin-link-burn {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 8px;
+    }
+
+    .admin-link-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid;
+    }
+
+    .tag-active   { color: var(--green);  border-color: rgba(45,255,106,.3);  background: rgba(45,255,106,.06); }
+    .tag-expired  { color: var(--accent); border-color: rgba(255,59,31,.3);   background: rgba(255,59,31,.06);  }
+    .tag-used     { color: #ff9f0a;       border-color: rgba(255,159,10,.3);  background: rgba(255,159,10,.06); }
+    .tag-oneuse   { color: var(--muted);  border-color: var(--border);        background: transparent;          }
+    .tag-time     { color: var(--muted);  border-color: var(--border);        background: transparent;          }
+
+    .admin-link-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .admin-countdown {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent2);
+      white-space: nowrap;
+    }
+
+    .btn-admin-delete {
+      background: rgba(255,59,31,.08);
+      border: 1px solid rgba(255,59,31,.2);
+      border-radius: 8px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 7px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s;
+    }
+
+    .btn-admin-delete:hover { background: rgba(255,59,31,.2); }
+
+    .admin-empty {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+
+    @media (max-width: 600px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .admin-link-item { grid-template-columns: 1fr; }
+      .admin-link-actions { flex-direction: row; justify-content: flex-start; }
+      .login-card { padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="grid-bg"></div>
+
+  <!-- ── LOADING ── -->
+  <div id="loading-overlay" class="active">
+    <div class="loading-flame">🔥</div>
+    <p class="loading-text">Verificando acceso...</p>
+  </div>
+
+  <!-- ── LOGIN SCREEN ── -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-flame">🔥</div>
+      <h2 class="login-title">Admin Panel</h2>
+      <p class="login-sub">Acceso restringido</p>
+      <button class="btn-google" id="btn-google-login">
+        <svg class="google-icon" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Continuar con Google
+      </button>
+      <p class="login-note">Solo cuentas autorizadas pueden acceder</p>
+    </div>
+  </div>
+
+  <!-- ── ACCESS DENIED ── -->
+  <div id="denied-screen">
+    <div style="font-size:64px;margin-bottom:20px;">🚫</div>
+    <h2 style="font-size:24px;font-weight:800;letter-spacing:-1px;margin-bottom:8px;">Acceso Denegado</h2>
+    <p style="font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">ESTA CUENTA NO TIENE PERMISOS</p>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:28px;" id="denied-email"></p>
+    <button class="btn-back" onclick="adminLogout()">Cerrar sesión</button>
+  </div>
+
+  <!-- ── TOP BAR ── -->
+  <div class="admin-topbar" id="admin-topbar" style="display:none;">
+    <div class="admin-topbar-left">
+      <a href="index.html" class="admin-topbar-logo">🔥 BurnLink</a>
+      <span class="admin-badge">Admin</span>
+    </div>
+    <div class="admin-user">
+      <img id="admin-avatar" src="" alt="avatar" onerror="this.style.display='none'" />
+      <span class="admin-user-name" id="admin-email-display"></span>
+      <button class="btn-logout" onclick="adminLogout()">Salir</button>
+    </div>
+  </div>
+
+  <!-- ── ADMIN CONTENT ── -->
+  <div id="admin-content">
+    <div class="admin-container">
+
+      <div class="admin-header">
+        <h2>Panel de administración</h2>
+        <p>TODOS LOS BURNLINKS · TIEMPO REAL</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number" id="stat-total">0</div>
+          <div class="stat-label">Total links</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number green" id="stat-active">0</div>
+          <div class="stat-label">Activos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number accent" id="stat-expired">0</div>
+          <div class="stat-label">Expirados</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="admin-toolbar">
+        <div class="toolbar-left">
+          <button class="filter-btn active" data-filter="all">Todos</button>
+          <button class="filter-btn" data-filter="active">Activos</button>
+          <button class="filter-btn" data-filter="expired">Expirados</button>
+        </div>
+        <button class="btn-delete-all" id="btn-delete-all">🗑 Borrar expirados</button>
+      </div>
+
+      <!-- Links list -->
+      <div class="admin-links" id="admin-links-list"></div>
+
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey:            "AIzaSyBLqHcWApjbbqjasgk-H4bGg5KN5Bf-Fss",
+      authDomain:        "burnlink-48b09.firebaseapp.com",
+      projectId:         "burnlink-48b09",
+      storageBucket:     "burnlink-48b09.firebasestorage.app",
+      messagingSenderId: "102519825848",
+      appId:             "1:102519825848:web:6a3d1ac53fbff5de611b4d"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+  <script src="admin.js"></script>
+</body>
+</html>
