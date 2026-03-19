@@ -14,14 +14,30 @@
 
   <div class="grid-bg"></div>
 
-  <!-- ── REDIRECT OVERLAY ── -->
+  <!-- ── COUNTDOWN OVERLAY ── -->
   <div id="redirect-overlay" aria-live="assertive">
     <div class="redirect-flame">🔥</div>
-    <h2 class="redirect-title">Este link se destruirá...</h2>
-    <p class="redirect-subtitle">DESPUÉS DE ESTA VISITA · SE QUEMA PARA SIEMPRE</p>
-    <div class="redirect-url" id="redirect-dest-url"></div>
+    <h2 class="redirect-title">Link activo</h2>
+    <p class="redirect-subtitle">CARGANDO CONTENIDO · LINK DE UN SOLO USO</p>
     <div class="redirect-counter" id="redirect-countdown">3</div>
-    <p class="redirect-msg">REDIRIGIENDO EN SEGUNDOS</p>
+    <p class="redirect-msg">ABRIENDO EN SEGUNDOS</p>
+  </div>
+
+  <!-- ── IFRAME VIEWER ── -->
+  <div id="iframe-overlay">
+    <iframe
+      id="content-frame"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+      allowfullscreen
+    ></iframe>
+    <!-- Fallback: se muestra si el sitio bloquea iframes -->
+    <div id="iframe-fallback">
+      <div style="font-size:56px;margin-bottom:16px;">⚠️</div>
+      <h2 class="redirect-title" style="font-size:22px;">Este sitio no permite vista previa</h2>
+      <p class="redirect-subtitle">SE ABRIRÁ EN ESTA PESTAÑA</p>
+      <div class="redirect-counter" id="fallback-countdown">3</div>
+      <p class="redirect-msg">REDIRIGIENDO...</p>
+    </div>
   </div>
 
   <!-- ── EXPIRED OVERLAY ── -->
@@ -43,7 +59,6 @@
   <!-- ── MAIN ── -->
   <div class="container">
 
-    <!-- Header -->
     <header class="header">
       <div class="logo">
         <span class="flame">🔥</span>
@@ -52,7 +67,6 @@
       <p class="tagline">Links que se autodestruyen</p>
     </header>
 
-    <!-- Form Card -->
     <div class="card">
       <p class="section-label">// nuevo link</p>
 
@@ -95,7 +109,7 @@
         <div class="toggle-row">
           <div class="toggle-info">
             <span>Cuenta regresiva visible</span>
-            <small>Mostrar timer antes de redirigir</small>
+            <small>Mostrar timer antes de abrir el contenido</small>
           </div>
           <button class="toggle on" id="toggle-countdown" aria-pressed="true"
             onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))">
@@ -133,12 +147,11 @@
       <div id="links-list"></div>
     </section>
 
-  </div><!-- /container -->
+  </div>
 
-  <!-- Firebase SDK (v9 compat) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
   <script>
     const firebaseConfig = {
       apiKey:            "AIzaSyBLqHcWApjbbqjasgk-H4bGg5KN5Bf-Fss",
@@ -150,7 +163,6 @@
     };
     firebase.initializeApp(firebaseConfig);
   </script>
-
   <script src="app.js"></script>
 </body>
 </html>

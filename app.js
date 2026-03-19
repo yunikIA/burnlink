@@ -1,17 +1,17 @@
 /* ============================================================
-   BurnLink — app.js  (Firebase Firestore backend)
+   BurnLink — app.js  (Firebase Firestore + iframe viewer)
    ============================================================ */
 
 'use strict';
 
-/* ── Firestore reference ── */
-const db = firebase.firestore();
+/* ── Firestore ── */
+const db       = firebase.firestore();
 const linksCol = db.collection('burnlinks');
 
 /* ── State ── */
 let selectedSeconds = 3600;
-let localLinks = [];          // cache local para el historial
-let unsubscribe = null;       // listener de Firestore
+let localLinks      = [];
+let unsubscribe     = null;
 
 /* ══════════════════════════════════════════════
    HELPERS
@@ -55,7 +55,7 @@ function showToast(msg, type = '') {
   }
   toast.textContent = msg;
   toast.className = 'toast ' + type;
-  void toast.offsetWidth; // reflow
+  void toast.offsetWidth;
   toast.classList.add('show');
   clearTimeout(toast._t);
   toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
@@ -73,7 +73,7 @@ document.querySelectorAll('.dur-btn').forEach(btn => {
   btn.addEventListener('click', function () {
     document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
     this.classList.add('active');
-    const val = this.dataset.seconds;
+    const val     = this.dataset.seconds;
     const customEl = document.getElementById('custom-duration');
     if (val === 'custom') {
       customEl.classList.add('visible');
@@ -94,14 +94,13 @@ function getSelectedSeconds() {
 }
 
 /* ══════════════════════════════════════════════
-   GENERATE LINK  →  guarda en Firestore
+   GENERATE LINK
 ══════════════════════════════════════════════ */
 
 async function generateLink() {
   const urlInput = document.getElementById('dest-url');
-  const url = urlInput.value.trim();
+  const url      = urlInput.value.trim();
 
-  // Validar URL
   if (!url) {
     urlInput.focus();
     urlInput.style.borderColor = 'var(--accent)';
@@ -109,6 +108,7 @@ async function generateLink() {
     setTimeout(() => { urlInput.style.borderColor = ''; urlInput.style.boxShadow = ''; }, 1500);
     return;
   }
+
   try { new URL(url); } catch {
     urlInput.focus();
     urlInput.style.borderColor = 'var(--accent)';
@@ -122,30 +122,18 @@ async function generateLink() {
 
   const oneUse        = document.getElementById('toggle-oneuse').classList.contains('on');
   const showCountdown = document.getElementById('toggle-countdown').classList.contains('on');
+  const id            = generateId();
+  const expiresAt     = Date.now() + secs * 1000;
 
-  const id        = generateId();
-  const expiresAt = Date.now() + secs * 1000;
+  const linkData = { id, url, expiresAt, oneUse, showCountdown, used: false, created: Date.now(), duration: secs };
 
-  const linkData = {
-    id,
-    url,
-    expiresAt,
-    oneUse,
-    showCountdown,
-    used:     false,
-    created:  Date.now(),
-    duration: secs,
-  };
-
-  // Deshabilitar botón mientras guarda
-  const btnGen = document.getElementById('btn-generate');
-  btnGen.disabled = true;
+  const btnGen      = document.getElementById('btn-generate');
+  btnGen.disabled   = true;
   btnGen.textContent = 'Guardando...';
 
   try {
     await linksCol.doc(id).set(linkData);
 
-    // Mostrar resultado
     const burnUrl = getBaseUrl() + '?id=' + id;
     document.getElementById('generated-link').textContent = burnUrl;
     document.getElementById('expiry-label').textContent   = formatDuration(secs);
@@ -162,7 +150,7 @@ async function generateLink() {
     console.error('Error guardando link:', err);
     showToast('Error al guardar. Revisá la conexión.', 'error');
   } finally {
-    btnGen.disabled = false;
+    btnGen.disabled    = false;
     btnGen.textContent = '🔥 Generar BurnLink';
   }
 }
@@ -181,7 +169,6 @@ function copyLink() {
       setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
     })
     .catch(() => {
-      // Fallback
       const ta = document.createElement('textarea');
       ta.value = link;
       document.body.appendChild(ta);
@@ -193,7 +180,7 @@ function copyLink() {
 }
 
 /* ══════════════════════════════════════════════
-   DELETE LINK  →  borra de Firestore
+   DELETE / CLEAR
 ══════════════════════════════════════════════ */
 
 async function deleteLink(id) {
@@ -206,14 +193,9 @@ async function deleteLink(id) {
   }
 }
 
-/* ══════════════════════════════════════════════
-   CLEAR ALL  →  borra todos de Firestore
-══════════════════════════════════════════════ */
-
 async function clearHistory() {
   if (!localLinks.length) return;
   if (!confirm('¿Borrar todos los links?')) return;
-
   try {
     const batch = db.batch();
     localLinks.forEach(l => batch.delete(linksCol.doc(l.id)));
@@ -232,7 +214,7 @@ async function clearHistory() {
 
 function renderHistory() {
   const container = document.getElementById('links-list');
-  const now = Date.now();
+  const now       = Date.now();
 
   if (!localLinks.length) {
     container.innerHTML = '<div class="empty-state">// sin links generados aún</div>';
@@ -283,11 +265,10 @@ setInterval(() => {
 }, 1000);
 
 /* ══════════════════════════════════════════════
-   REAL-TIME LISTENER  (Firestore onSnapshot)
+   FIRESTORE LISTENER
 ══════════════════════════════════════════════ */
 
 function startListener() {
-  // Escucha cambios en tiempo real ordenados por fecha de creación
   unsubscribe = linksCol
     .orderBy('created', 'desc')
     .onSnapshot(snapshot => {
@@ -300,16 +281,73 @@ function startListener() {
 }
 
 /* ══════════════════════════════════════════════
+   IFRAME VIEWER
+   - Intenta mostrar el contenido en un iframe
+   - Si el sitio bloquea iframes (X-Frame-Options),
+     el iframe dispara un error y hacemos fallback
+     a redirección directa
+══════════════════════════════════════════════ */
+
+function openInIframe(url) {
+  const overlay  = document.getElementById('iframe-overlay');
+  const frame    = document.getElementById('content-frame');
+  const fallback = document.getElementById('iframe-fallback');
+
+  overlay.classList.add('active');
+
+  // Timeout: si en 5 segundos el iframe no cargó nada útil
+  // (muchos sitios bloquean silenciosamente), hacemos fallback
+  let loaded = false;
+
+  frame.onload = () => {
+    loaded = true;
+    // Intentar leer el contenido — si hay error de cross-origin
+    // significa que cargó pero en un dominio diferente (OK)
+    // Si el sitio bloquea X-Frame-Options, el onload NO se dispara
+  };
+
+  // Detectar bloqueo por X-Frame-Options:
+  // El frame queda vacío y onload nunca se dispara en ~3s
+  const blockTimer = setTimeout(() => {
+    if (!loaded) {
+      // Fallback: redirigir directamente
+      console.warn('iframe bloqueado, redirigiendo directamente');
+      frame.style.display = 'none';
+      fallback.classList.add('active');
+
+      let count = 3;
+      document.getElementById('fallback-countdown').textContent = count;
+      const interval = setInterval(() => {
+        count--;
+        document.getElementById('fallback-countdown').textContent = count;
+        if (count <= 0) {
+          clearInterval(interval);
+          window.location.href = url;
+        }
+      }, 1000);
+    }
+  }, 3000);
+
+  // Asignar src DESPUÉS de configurar los handlers
+  frame.src = url;
+
+  // Si cargó antes del timer, cancelar el fallback
+  frame.onload = () => {
+    loaded = true;
+    clearTimeout(blockTimer);
+  };
+}
+
+/* ══════════════════════════════════════════════
    HANDLE INCOMING BURN LINK
 ══════════════════════════════════════════════ */
 
 async function checkForBurnLink() {
   const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
+  const id     = params.get('id');
   if (!id) return;
 
   history.replaceState(null, '', window.location.pathname);
-
   setLoading(true);
 
   try {
@@ -330,27 +368,30 @@ async function checkForBurnLink() {
       return;
     }
 
-    // Marcar como usado si es one-use (transacción atómica)
+    // Marcar como usado (transacción atómica para one-use)
     if (link.oneUse) {
-      await db.runTransaction(async tx => {
-        const fresh = await tx.get(linksCol.doc(id));
-        if (fresh.data().used) throw new Error('already_used');
-        tx.update(linksCol.doc(id), { used: true });
-      }).catch(err => {
+      try {
+        await db.runTransaction(async tx => {
+          const fresh = await tx.get(linksCol.doc(id));
+          if (fresh.data().used) throw new Error('already_used');
+          tx.update(linksCol.doc(id), { used: true });
+        });
+      } catch (err) {
         if (err.message === 'already_used') {
           setLoading(false);
           document.getElementById('expired-overlay').classList.add('active');
-          throw err;
+          return;
         }
-      });
+        throw err;
+      }
     }
 
     setLoading(false);
 
-    // Redirigir
+    // Mostrar con cuenta regresiva o directo
     if (link.showCountdown) {
-      document.getElementById('redirect-dest-url').textContent = link.url;
-      document.getElementById('redirect-overlay').classList.add('active');
+      const countOverlay = document.getElementById('redirect-overlay');
+      countOverlay.classList.add('active');
 
       let count = 3;
       document.getElementById('redirect-countdown').textContent = count;
@@ -360,19 +401,21 @@ async function checkForBurnLink() {
         document.getElementById('redirect-countdown').textContent = count;
         if (count <= 0) {
           clearInterval(interval);
-          window.location.href = link.url;
+          countOverlay.classList.remove('active');
+          // Abrir en iframe (URL oculta en barra de dirección)
+          openInIframe(link.url);
         }
       }, 1000);
+
     } else {
-      window.location.href = link.url;
+      // Sin countdown, directo al iframe
+      openInIframe(link.url);
     }
 
   } catch (err) {
-    if (err.message !== 'already_used') {
-      setLoading(false);
-      console.error('Error al verificar link:', err);
-      showToast('Error al verificar el link.', 'error');
-    }
+    setLoading(false);
+    console.error('Error al verificar link:', err);
+    showToast('Error al verificar el link.', 'error');
   }
 }
 
@@ -383,7 +426,6 @@ async function checkForBurnLink() {
 document.getElementById('btn-generate').addEventListener('click', generateLink);
 document.getElementById('copy-btn').addEventListener('click', copyLink);
 document.getElementById('btn-clear').addEventListener('click', clearHistory);
-
 document.getElementById('dest-url').addEventListener('keydown', e => {
   if (e.key === 'Enter') generateLink();
 });
@@ -394,12 +436,7 @@ document.getElementById('dest-url').addEventListener('keydown', e => {
 
 (async function init() {
   setLoading(true);
-
-  // Primero chequear si hay un burn link en la URL
   await checkForBurnLink();
-
-  // Luego iniciar el listener del historial
   startListener();
-
   setLoading(false);
 })();

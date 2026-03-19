@@ -593,6 +593,43 @@ select:focus { border-color: var(--accent); }
   letter-spacing: 1px;
 }
 
+/* ── Iframe overlay ── */
+#iframe-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: #000;
+}
+
+#iframe-overlay.active {
+  display: block;
+}
+
+#content-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+#iframe-fallback {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+#iframe-fallback.active {
+  display: flex;
+}
+
 /* ── Loading overlay ── */
 #loading-overlay {
   display: none;
