@@ -1,19 +1,27 @@
 /* ============================================================
-   BurnLink — app.js  v3  (Storage + multi-content)
+   BurnLink — app.js  v4  (Firestore base64, sin Storage)
    ============================================================ */
 'use strict';
 
 const db       = firebase.firestore();
-const storage  = firebase.storage();
 const linksCol = db.collection('burnlinks');
 
 /* ── State ── */
 let selectedSeconds = 3600;
 let currentType     = 'text';
 let localLinks      = [];
-let selectedFile    = null;   // File object para imagen/archivo/qr
+let selectedFile    = null;
+let selectedFileB64 = null; // base64 del archivo
 
-const TYPE_LABELS = { text: '✉️ Mensaje', url: '🔗 Link', image: '🖼️ Imagen', file: '📎 Archivo', qr: '◼️ QR' };
+const MAX_FILE_BYTES = 500 * 1024; // 500KB
+
+const TYPE_LABELS = {
+  text:  '✉️ Mensaje',
+  url:   '🔗 Link',
+  image: '🖼️ Imagen',
+  file:  '📎 Archivo',
+  qr:    '◼️ QR',
+};
 
 /* ══════════════════════════════════════════════
    HELPERS
@@ -36,8 +44,8 @@ function formatCountdown(ms) {
   return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
 }
 function formatBytes(b) {
-  if (b < 1024)       return b + ' B';
-  if (b < 1048576)    return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024)     return b + ' B';
+  if (b < 1048576)  return (b/1024).toFixed(1) + ' KB';
   return (b/1048576).toFixed(1) + ' MB';
 }
 function getBaseUrl() { return window.location.origin + '/'; }
@@ -47,9 +55,28 @@ function setLoading(on) {
 function showToast(msg, type='') {
   let t = document.getElementById('toast');
   if (!t) { t = document.createElement('div'); t.id='toast'; t.className='toast'; document.body.appendChild(t); }
-  t.textContent = msg; t.className = 'toast '+type;
+  t.textContent = msg; t.className = 'toast ' + type;
   void t.offsetWidth; t.classList.add('show');
-  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 3000);
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+function getFileIcon(mime='') {
+  if (mime.includes('pdf'))   return '📄';
+  if (mime.includes('video')) return '🎥';
+  if (mime.includes('audio')) return '🎵';
+  if (mime.includes('zip') || mime.includes('rar')) return '📦';
+  return '📎';
+}
+
+/* ══════════════════════════════════════════════
+   LEER ARCHIVO COMO BASE64
+══════════════════════════════════════════════ */
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result); // data:mime;base64,xxx
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 /* ══════════════════════════════════════════════
@@ -71,52 +98,55 @@ document.querySelectorAll('.type-btn').forEach(btn => {
     document.querySelectorAll('.content-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + currentType).classList.add('active');
     document.getElementById('content-label').textContent = CONTENT_LABELS[currentType];
-    selectedFile = null;
+    selectedFile    = null;
+    selectedFileB64 = null;
   });
 });
 
 /* ══════════════════════════════════════════════
-   FILE UPLOAD ZONES
+   UPLOAD ZONES
 ══════════════════════════════════════════════ */
 function setupUploadZone(zoneId, inputId, type) {
   const zone  = document.getElementById(zoneId);
   const input = document.getElementById(inputId);
-
   zone.addEventListener('click', () => input.click());
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
   zone.addEventListener('drop', e => {
     e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file, type);
+    if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0], type);
   });
   input.addEventListener('change', () => {
     if (input.files[0]) handleFileSelect(input.files[0], type);
   });
 }
 
-function handleFileSelect(file, type) {
-  const maxMB = type === 'file' ? 50 : 10;
-  if (file.size > maxMB * 1024 * 1024) {
-    showToast(`El archivo supera los ${maxMB}MB.`, 'error'); return;
+async function handleFileSelect(file, type) {
+  // Validar tamaño
+  if (file.size > MAX_FILE_BYTES) {
+    showToast(`Máximo 500KB. Este archivo pesa ${formatBytes(file.size)}.`, 'error');
+    return;
   }
+
   selectedFile = file;
 
+  // Mostrar preview visual
   if (type === 'image' || type === 'qr') {
-    const reader = new FileReader();
-    reader.onload = e => {
-      if (type === 'image') {
-        document.getElementById('preview-img').src = e.target.result;
-        document.getElementById('upload-zone-image').style.display = 'none';
-        document.getElementById('preview-image').style.display = 'block';
-      } else {
-        document.getElementById('preview-qr-img').src = e.target.result;
-        document.getElementById('upload-zone-qr').style.display = 'none';
-        document.getElementById('preview-qr').style.display = 'block';
-      }
-    };
-    reader.readAsDataURL(file);
+    const b64 = await readFileAsBase64(file);
+    selectedFileB64 = b64;
+    if (type === 'image') {
+      document.getElementById('preview-img').src = b64;
+      document.getElementById('upload-zone-image').style.display = 'none';
+      document.getElementById('preview-image').style.display = 'block';
+    } else {
+      document.getElementById('preview-qr-img').src = b64;
+      document.getElementById('upload-zone-qr').style.display = 'none';
+      document.getElementById('preview-qr').style.display = 'block';
+    }
   } else {
+    // Archivo general
+    const b64 = await readFileAsBase64(file);
+    selectedFileB64 = b64;
     document.getElementById('preview-filename').textContent = file.name;
     document.getElementById('preview-filesize').textContent = formatBytes(file.size);
     document.getElementById('upload-zone-file').style.display = 'none';
@@ -125,7 +155,8 @@ function handleFileSelect(file, type) {
 }
 
 function removeFile(type) {
-  selectedFile = null;
+  selectedFile    = null;
+  selectedFileB64 = null;
   if (type === 'image') {
     document.getElementById('upload-zone-image').style.display = 'flex';
     document.getElementById('preview-image').style.display = 'none';
@@ -167,36 +198,6 @@ function getSelectedSeconds() {
 }
 
 /* ══════════════════════════════════════════════
-   UPLOAD FILE TO STORAGE
-══════════════════════════════════════════════ */
-function uploadFile(file, id) {
-  return new Promise((resolve, reject) => {
-    const ext  = file.name.split('.').pop();
-    const ref  = storage.ref(`burnlinks/${id}/${Date.now()}.${ext}`);
-    const task = ref.put(file);
-
-    const progressCard = document.getElementById('upload-progress-card');
-    const fill         = document.getElementById('progress-bar-fill');
-    const pct          = document.getElementById('progress-pct');
-    progressCard.style.display = 'block';
-
-    task.on('state_changed',
-      snap => {
-        const p = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        fill.style.width = p + '%';
-        pct.textContent  = p + '%';
-      },
-      err => { progressCard.style.display = 'none'; reject(err); },
-      async () => {
-        progressCard.style.display = 'none';
-        const url = await task.snapshot.ref.getDownloadURL();
-        resolve({ url, name: file.name, size: file.size, mimeType: file.type });
-      }
-    );
-  });
-}
-
-/* ══════════════════════════════════════════════
    GENERATE LINK
 ══════════════════════════════════════════════ */
 async function generateLink() {
@@ -205,9 +206,8 @@ async function generateLink() {
 
   const oneUse = document.getElementById('toggle-oneuse').classList.contains('on');
   const id     = generateId();
-
-  // Validar contenido según tipo
   let contentData = {};
+
   if (currentType === 'text') {
     const txt = document.getElementById('input-text').value.trim();
     if (!txt) { showToast('Escribí un mensaje.', 'error'); return; }
@@ -221,33 +221,26 @@ async function generateLink() {
     }
     contentData = { url };
 
-  } else if (currentType === 'image' || currentType === 'qr') {
-    if (!selectedFile) { showToast('Seleccioná una imagen.', 'error'); return; }
-
-  } else if (currentType === 'file') {
-    if (!selectedFile) { showToast('Seleccioná un archivo.', 'error'); return; }
+  } else if (currentType === 'image' || currentType === 'qr' || currentType === 'file') {
+    if (!selectedFile || !selectedFileB64) {
+      showToast('Seleccioná un archivo primero.', 'error'); return;
+    }
+    contentData = {
+      data:     selectedFileB64,      // base64 data URL
+      name:     selectedFile.name,
+      size:     selectedFile.size,
+      mimeType: selectedFile.type,
+    };
   }
 
   const btn = document.getElementById('btn-generate');
-  btn.disabled = true; btn.textContent = 'Generando...';
+  btn.disabled = true; btn.textContent = 'Guardando...';
 
   try {
-    // Upload si hay archivo
-    if (selectedFile) {
-      btn.textContent = 'Subiendo archivo...';
-      const uploaded = await uploadFile(selectedFile, id);
-      contentData = { ...uploaded };
-    }
-
     const linkData = {
-      id,
-      type: currentType,
-      content: contentData,
+      id, type: currentType, content: contentData,
       expiresAt: Date.now() + secs * 1000,
-      oneUse,
-      used:     false,
-      created:  Date.now(),
-      duration: secs,
+      oneUse, used: false, created: Date.now(), duration: secs,
     };
 
     await linksCol.doc(id).set(linkData);
@@ -263,15 +256,15 @@ async function generateLink() {
     rc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     showToast('🔥 BurnLink generado!', 'success');
 
-    // Reset form
+    // Reset
     document.getElementById('input-text').value = '';
     document.getElementById('input-url').value  = '';
-    selectedFile = null;
+    selectedFile = null; selectedFileB64 = null;
     ['image','file','qr'].forEach(t => removeFile(t));
 
   } catch(err) {
     console.error(err);
-    showToast('Error al generar. Intentá de nuevo.', 'error');
+    showToast('Error al guardar. El archivo puede ser muy grande.', 'error');
   } finally {
     btn.disabled = false; btn.textContent = '🔥 Generar BurnLink';
   }
@@ -290,7 +283,36 @@ function copyLink() {
 }
 
 /* ══════════════════════════════════════════════
-   VIEWER — muestra el contenido según tipo
+   IFRAME (para tipo URL)
+══════════════════════════════════════════════ */
+function openInIframe(url) {
+  document.getElementById('viewer-overlay').classList.remove('active');
+  const overlay  = document.getElementById('iframe-overlay');
+  const frame    = document.getElementById('content-frame');
+  const fallback = document.getElementById('iframe-fallback');
+  overlay.classList.add('active');
+
+  let loaded = false;
+  const blockTimer = setTimeout(() => {
+    if (!loaded) {
+      frame.style.display = 'none';
+      fallback.classList.add('active');
+      let count = 3;
+      document.getElementById('fallback-countdown').textContent = count;
+      const iv = setInterval(() => {
+        count--;
+        document.getElementById('fallback-countdown').textContent = count;
+        if (count <= 0) { clearInterval(iv); window.location.href = url; }
+      }, 1000);
+    }
+  }, 3000);
+
+  frame.src = url;
+  frame.onload = () => { loaded = true; clearTimeout(blockTimer); };
+}
+
+/* ══════════════════════════════════════════════
+   RENDER CONTENT en el viewer
 ══════════════════════════════════════════════ */
 function renderContent(link) {
   const body = document.getElementById('viewer-body');
@@ -304,23 +326,18 @@ function renderContent(link) {
       </div>`;
 
   } else if (type === 'url') {
-    // Para URLs usamos iframe con fallback igual que antes
     openInIframe(content.url);
     return;
 
-  } else if (type === 'image') {
+  } else if (type === 'image' || type === 'qr') {
+    const label = type === 'qr' ? 'CÓDIGO QR' : 'IMAGEN SECRETA';
+    const cls   = type === 'qr' ? 'viewer-qr' : 'viewer-image';
+    const hint  = type === 'qr' ? '<p class="viewer-qr-hint">Escaneá el código con tu cámara</p>' : '';
     body.innerHTML = `
       <div class="viewer-image-wrap">
-        <p class="viewer-label">IMAGEN SECRETA</p>
-        <img src="${content.url}" alt="Imagen secreta" class="viewer-image" />
-      </div>`;
-
-  } else if (type === 'qr') {
-    body.innerHTML = `
-      <div class="viewer-image-wrap">
-        <p class="viewer-label">CÓDIGO QR</p>
-        <img src="${content.url}" alt="QR" class="viewer-qr" />
-        <p class="viewer-qr-hint">Escaneá el código con tu cámara</p>
+        <p class="viewer-label">${label}</p>
+        <img src="${content.data}" alt="${label}" class="${cls}" />
+        ${hint}
       </div>`;
 
   } else if (type === 'file') {
@@ -335,52 +352,12 @@ function renderContent(link) {
             <div class="viewer-file-size">${formatBytes(content.size)}</div>
           </div>
         </div>
-        <a href="${content.url}" download="${content.name}" class="btn-download" target="_blank">
+        <a href="${content.data}" download="${content.name}" class="btn-download">
           ⬇ Descargar archivo
         </a>
-        <p class="viewer-file-warn">⚠️ Este link ya no funcionará después de descargarlo</p>
+        <p class="viewer-file-warn">⚠️ Descargá ahora — este link no funcionará de nuevo</p>
       </div>`;
   }
-}
-
-function getFileIcon(mime='') {
-  if (mime.includes('pdf'))   return '📄';
-  if (mime.includes('video')) return '🎥';
-  if (mime.includes('audio')) return '🎵';
-  if (mime.includes('zip') || mime.includes('rar') || mime.includes('7z')) return '📦';
-  return '📎';
-}
-
-/* ══════════════════════════════════════════════
-   IFRAME VIEWER (para tipo URL)
-══════════════════════════════════════════════ */
-function openInIframe(url) {
-  // Ocultar viewer overlay normal y mostrar iframe
-  document.getElementById('viewer-overlay').classList.remove('active');
-
-  const overlay  = document.getElementById('iframe-overlay');
-  const frame    = document.getElementById('content-frame');
-  const fallback = document.getElementById('iframe-fallback');
-  overlay.classList.add('active');
-
-  let loaded = false;
-
-  const blockTimer = setTimeout(() => {
-    if (!loaded) {
-      frame.style.display = 'none';
-      fallback.classList.add('active');
-      let count = 3;
-      document.getElementById('fallback-countdown').textContent = count;
-      const interval = setInterval(() => {
-        count--;
-        document.getElementById('fallback-countdown').textContent = count;
-        if (count <= 0) { clearInterval(interval); window.location.href = url; }
-      }, 1000);
-    }
-  }, 3000);
-
-  frame.src = url;
-  frame.onload = () => { loaded = true; clearTimeout(blockTimer); };
 }
 
 /* ══════════════════════════════════════════════
@@ -432,15 +409,14 @@ async function checkForBurnLink() {
 
     setLoading(false);
 
-    // Mostrar viewer con countdown
-    const viewerOverlay      = document.getElementById('viewer-overlay');
-    const countdownScreen    = document.getElementById('viewer-countdown-screen');
-    const contentScreen      = document.getElementById('viewer-content-screen');
+    // Mostrar countdown luego contenido
+    const viewerOverlay   = document.getElementById('viewer-overlay');
+    const countdownScreen = document.getElementById('viewer-countdown-screen');
+    const contentScreen   = document.getElementById('viewer-content-screen');
     viewerOverlay.classList.add('active');
 
     let count = 3;
     document.getElementById('viewer-counter').textContent = count;
-
     const interval = setInterval(() => {
       count--;
       document.getElementById('viewer-counter').textContent = count;
@@ -448,7 +424,7 @@ async function checkForBurnLink() {
         clearInterval(interval);
         countdownScreen.style.display = 'none';
         renderContent(link);
-        contentScreen.style.display   = 'flex';
+        contentScreen.style.display = 'flex';
       }
     }, 1000);
 
@@ -460,11 +436,11 @@ async function checkForBurnLink() {
 }
 
 /* ══════════════════════════════════════════════
-   HISTORY (solo lectura)
+   HISTORY
 ══════════════════════════════════════════════ */
 function renderHistory() {
   const container = document.getElementById('links-list');
-  const now       = Date.now();
+  const now = Date.now();
   if (!localLinks.length) {
     container.innerHTML = '<div class="empty-state">// tus links generados aparecen acá</div>';
     return;
