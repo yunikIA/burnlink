@@ -34,6 +34,12 @@
     </button>
   </div>
 
+  <!-- ── LOADING OVERLAY ── -->
+  <div id="loading-overlay" class="active">
+    <div class="loading-flame">🔥</div>
+    <p class="loading-text">Conectando...</p>
+  </div>
+
   <!-- ── MAIN ── -->
   <div class="container">
 
@@ -82,14 +88,18 @@
             <span>Destruir al primer click</span>
             <small>El link muere después de ser visitado 1 vez</small>
           </div>
-          <button class="toggle" id="toggle-oneuse" aria-pressed="false" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+          <button class="toggle" id="toggle-oneuse" aria-pressed="false"
+            onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))">
+          </button>
         </div>
         <div class="toggle-row">
           <div class="toggle-info">
             <span>Cuenta regresiva visible</span>
             <small>Mostrar timer antes de redirigir</small>
           </div>
-          <button class="toggle on" id="toggle-countdown" aria-pressed="true" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+          <button class="toggle on" id="toggle-countdown" aria-pressed="true"
+            onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))">
+          </button>
         </div>
       </div>
 
@@ -118,12 +128,28 @@
     <section class="history-section" id="history-section">
       <div class="history-header">
         <span class="history-title">// mis links</span>
-        <button class="btn-clear" id="btn-clear">Limpiar</button>
+        <button class="btn-clear" id="btn-clear">Limpiar todo</button>
       </div>
       <div id="links-list"></div>
     </section>
 
   </div><!-- /container -->
+
+  <!-- Firebase SDK (v9 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey:            "AIzaSyBLqHcWApjbbqjasgk-H4bGg5KN5Bf-Fss",
+      authDomain:        "burnlink-48b09.firebaseapp.com",
+      projectId:         "burnlink-48b09",
+      storageBucket:     "burnlink-48b09.firebasestorage.app",
+      messagingSenderId: "102519825848",
+      appId:             "1:102519825848:web:6a3d1ac53fbff5de611b4d"
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
 
   <script src="app.js"></script>
 </body>
