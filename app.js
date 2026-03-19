@@ -146,7 +146,7 @@ async function generateLink() {
     await linksCol.doc(id).set(linkData);
 
     // Mostrar resultado
-    const burnUrl = getBaseUrl() + '#burn:' + id;
+    const burnUrl = getBaseUrl() + '?id=' + id;
     document.getElementById('generated-link').textContent = burnUrl;
     document.getElementById('expiry-label').textContent   = formatDuration(secs);
     document.getElementById('oneuse-chip').style.display  = oneUse ? 'flex' : 'none';
@@ -242,7 +242,7 @@ function renderHistory() {
   container.innerHTML = localLinks.map(link => {
     const expired   = now > link.expiresAt || (link.oneUse && link.used);
     const remaining = link.expiresAt - now;
-    const burnUrl   = getBaseUrl() + '#burn:' + link.id;
+    const burnUrl   = getBaseUrl() + '?id=' + link.id;
     const shortUrl  = burnUrl.length > 46 ? burnUrl.substring(0, 46) + '…' : burnUrl;
     const shortDest = link.url.length > 42 ? link.url.substring(0, 42) + '…' : link.url;
 
@@ -304,10 +304,10 @@ function startListener() {
 ══════════════════════════════════════════════ */
 
 async function checkForBurnLink() {
-  const hash = window.location.hash;
-  if (!hash.startsWith('#burn:')) return;
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) return;
 
-  const id = hash.replace('#burn:', '');
   history.replaceState(null, '', window.location.pathname);
 
   setLoading(true);
