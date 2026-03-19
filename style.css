@@ -44,6 +44,31 @@ body::before {
   z-index: 0;
 }
 
+/* ── Admin corner button ── */
+.admin-corner-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 50;
+  background: rgba(17,17,17,.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 8px 14px;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  transition: color .2s, border-color .2s, background .2s;
+}
+
+.admin-corner-btn:hover {
+  color: var(--accent);
+  border-color: rgba(255,59,31,.4);
+  background: rgba(255,59,31,.06);
+}
+
 /* ── Grid background ── */
 .grid-bg {
   position: fixed;
