@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BurnLink — Links que se autodestruyen</title>
-  <meta name="description" content="Generá links que se autodestruyen después de un tiempo o un solo uso." />
+  <title>BurnLink — Contenido que se autodestruye</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
@@ -14,19 +13,16 @@
 
   <div class="grid-bg"></div>
 
-  <!-- ── ADMIN BUTTON ── -->
+  <!-- ── ADMIN BTN ── -->
   <a href="/admin" class="admin-corner-btn">⚙ Admin</a>
 
-  <!-- ── COUNTDOWN OVERLAY ── -->
-  <div id="redirect-overlay" aria-live="assertive">
-    <div class="redirect-flame">🔥</div>
-    <h2 class="redirect-title">Link activo</h2>
-    <p class="redirect-subtitle">CARGANDO CONTENIDO · LINK DE UN SOLO USO</p>
-    <div class="redirect-counter" id="redirect-countdown">3</div>
-    <p class="redirect-msg">ABRIENDO EN SEGUNDOS</p>
+  <!-- ── LOADING ── -->
+  <div id="loading-overlay" class="active">
+    <div class="loading-flame">🔥</div>
+    <p class="loading-text">Conectando...</p>
   </div>
 
-  <!-- ── IFRAME VIEWER ── -->
+  <!-- ── IFRAME VIEWER (para tipo URL) ── -->
   <div id="iframe-overlay">
     <iframe
       id="content-frame"
@@ -45,17 +41,30 @@
   <!-- ── EXPIRED OVERLAY ── -->
   <div id="expired-overlay">
     <div style="font-size:80px;margin-bottom:24px;filter:grayscale(1);">💀</div>
-    <h2 class="expired-title">Link Destruido</h2>
+    <h2 class="expired-title">Contenido Destruido</h2>
     <p class="expired-sub">ESTE LINK YA EXPIRÓ O FUE UTILIZADO</p>
     <button class="btn-back" onclick="document.getElementById('expired-overlay').classList.remove('active')">
       Crear Nuevo Link
     </button>
   </div>
 
-  <!-- ── LOADING OVERLAY ── -->
-  <div id="loading-overlay" class="active">
-    <div class="loading-flame">🔥</div>
-    <p class="loading-text">Conectando...</p>
+  <!-- ── VIEWER OVERLAY ── -->
+  <div id="viewer-overlay">
+    <!-- Countdown -->
+    <div id="viewer-countdown-screen">
+      <div class="redirect-flame">🔥</div>
+      <h2 class="redirect-title">Contenido secreto</h2>
+      <p class="redirect-subtitle">SE DESTRUIRÁ DESPUÉS DE ESTA VISITA</p>
+      <div class="redirect-counter" id="viewer-counter">3</div>
+      <p class="redirect-msg">REVELANDO EN SEGUNDOS</p>
+    </div>
+    <!-- Content display -->
+    <div id="viewer-content-screen">
+      <div class="viewer-topbar">
+        <div class="viewer-burn-badge">🔥 Este contenido se destruyó al verlo</div>
+      </div>
+      <div id="viewer-body"></div>
+    </div>
   </div>
 
   <!-- ── MAIN ── -->
@@ -66,17 +75,103 @@
         <span class="flame">🔥</span>
         <h1>BurnLink</h1>
       </div>
-      <p class="tagline">Links que se autodestruyen</p>
+      <p class="tagline">Contenido que se autodestruye</p>
     </header>
 
-    <!-- Form Card -->
-    <div class="card">
-      <p class="section-label">// nuevo link</p>
-
-      <div class="input-group">
-        <label for="dest-url">URL de destino</label>
-        <input type="url" id="dest-url" placeholder="https://tu-sitio.com/algo-secreto" autocomplete="off" />
+    <!-- TYPE SELECTOR -->
+    <div class="card" id="card-type">
+      <p class="section-label">// qué querés compartir</p>
+      <div class="type-grid">
+        <button class="type-btn active" data-type="text">
+          <span class="type-icon">✉️</span>
+          <span>Mensaje</span>
+        </button>
+        <button class="type-btn" data-type="url">
+          <span class="type-icon">🔗</span>
+          <span>Link</span>
+        </button>
+        <button class="type-btn" data-type="image">
+          <span class="type-icon">🖼️</span>
+          <span>Imagen</span>
+        </button>
+        <button class="type-btn" data-type="file">
+          <span class="type-icon">📎</span>
+          <span>Archivo</span>
+        </button>
+        <button class="type-btn" data-type="qr">
+          <span class="type-icon">◼️</span>
+          <span>QR</span>
+        </button>
       </div>
+    </div>
+
+    <!-- CONTENT INPUT CARD -->
+    <div class="card" id="card-content">
+      <p class="section-label" id="content-label">// mensaje secreto</p>
+
+      <!-- TEXT -->
+      <div class="content-panel active" id="panel-text">
+        <textarea id="input-text" placeholder="Escribí tu mensaje secreto acá... Se destruirá después de ser visto." rows="6"></textarea>
+      </div>
+
+      <!-- URL -->
+      <div class="content-panel" id="panel-url">
+        <input type="url" id="input-url" placeholder="https://tu-sitio.com/algo-secreto" autocomplete="off" />
+        <p class="url-hint">El destinatario verá el contenido del link sin ver la URL real</p>
+      </div>
+
+      <!-- IMAGE -->
+      <div class="content-panel" id="panel-image">
+        <div class="upload-zone" id="upload-zone-image">
+          <div class="upload-icon">🖼️</div>
+          <p class="upload-title">Arrastrá una imagen o hacé click</p>
+          <p class="upload-sub">JPG, PNG, GIF, WEBP · Máx 10MB</p>
+          <input type="file" id="input-image" accept="image/*" hidden />
+        </div>
+        <div class="upload-preview" id="preview-image" style="display:none;">
+          <img id="preview-img" src="" alt="preview" />
+          <button class="btn-remove-file" onclick="removeFile('image')">✕ Cambiar imagen</button>
+        </div>
+      </div>
+
+      <!-- FILE -->
+      <div class="content-panel" id="panel-file">
+        <div class="upload-zone" id="upload-zone-file">
+          <div class="upload-icon">📎</div>
+          <p class="upload-title">Arrastrá un archivo o hacé click</p>
+          <p class="upload-sub">PDF, Video, Audio, ZIP · Máx 50MB</p>
+          <input type="file" id="input-file" hidden />
+        </div>
+        <div class="upload-preview file-preview" id="preview-file" style="display:none;">
+          <div class="file-info">
+            <span class="file-icon-big">📄</span>
+            <div>
+              <div class="file-name" id="preview-filename"></div>
+              <div class="file-size" id="preview-filesize"></div>
+            </div>
+          </div>
+          <button class="btn-remove-file" onclick="removeFile('file')">✕ Cambiar archivo</button>
+        </div>
+      </div>
+
+      <!-- QR -->
+      <div class="content-panel" id="panel-qr">
+        <div class="upload-zone" id="upload-zone-qr">
+          <div class="upload-icon">◼️</div>
+          <p class="upload-title">Subí tu imagen de QR</p>
+          <p class="upload-sub">JPG, PNG · Máx 5MB</p>
+          <input type="file" id="input-qr" accept="image/*" hidden />
+        </div>
+        <div class="upload-preview" id="preview-qr" style="display:none;">
+          <img id="preview-qr-img" src="" alt="QR preview" style="max-width:200px;margin:0 auto;display:block;" />
+          <button class="btn-remove-file" onclick="removeFile('qr')">✕ Cambiar QR</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTIONS CARD -->
+    <div class="card" id="card-options">
+      <p class="section-label">// configuración</p>
 
       <div class="input-group">
         <label>Duración del link</label>
@@ -98,34 +193,35 @@
         </div>
       </div>
 
-      <div class="input-group">
+      <div class="input-group" style="margin-bottom:0">
         <label>Opciones</label>
         <div class="toggle-row">
           <div class="toggle-info">
             <span>Destruir al primer click</span>
-            <small>El link muere después de ser visitado 1 vez</small>
+            <small>El contenido desaparece después de verse 1 vez</small>
           </div>
-          <button class="toggle" id="toggle-oneuse" aria-pressed="false"
-            onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))">
-          </button>
-        </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <span>Cuenta regresiva visible</span>
-            <small>Mostrar timer antes de abrir el contenido</small>
-          </div>
-          <button class="toggle on" id="toggle-countdown" aria-pressed="true"
+          <button class="toggle on" id="toggle-oneuse" aria-pressed="true"
             onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))">
           </button>
         </div>
       </div>
-
-      <button class="btn-generate" id="btn-generate">
-        🔥 Generar BurnLink
-      </button>
     </div>
 
-    <!-- Result Card -->
+    <!-- UPLOAD PROGRESS -->
+    <div class="upload-progress-card" id="upload-progress-card" style="display:none;">
+      <p class="section-label">// subiendo archivo</p>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progress-bar-fill"></div>
+      </div>
+      <p class="progress-pct" id="progress-pct">0%</p>
+    </div>
+
+    <!-- GENERATE BTN -->
+    <button class="btn-generate" id="btn-generate">
+      🔥 Generar BurnLink
+    </button>
+
+    <!-- RESULT -->
     <div class="result-card" id="result-card">
       <div class="result-header">
         <div class="status-dot"></div>
@@ -138,11 +234,12 @@
       <div class="meta-row">
         <div class="meta-chip">⏱ Expira en: <strong id="expiry-label"></strong></div>
         <div class="meta-chip" id="oneuse-chip">🔥 1 sola vez</div>
+        <div class="meta-chip" id="type-chip">✉️ Mensaje</div>
       </div>
     </div>
 
-    <!-- History — solo lectura -->
-    <section class="history-section" id="history-section">
+    <!-- RECENT -->
+    <section class="history-section">
       <div class="history-header">
         <span class="history-title">// links recientes</span>
       </div>
@@ -151,9 +248,10 @@
 
   </div>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script>
     const firebaseConfig = {
       apiKey:            "AIzaSyBLqHcWApjbbqjasgk-H4bGg5KN5Bf-Fss",
@@ -165,6 +263,7 @@
     };
     firebase.initializeApp(firebaseConfig);
   </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

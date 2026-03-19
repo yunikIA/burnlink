@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /burnlinks/{id}/{allPaths=**} {
+      // Cualquiera puede subir y leer archivos de burnlinks
+      allow read, write: if true;
+    }
+  }
+}

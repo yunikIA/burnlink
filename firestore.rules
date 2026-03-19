@@ -2,14 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /burnlinks/{id} {
-
-      // Cualquiera puede LEER y CREAR links
       allow read, create: if true;
-
-      // Solo pueden ACTUALIZAR (marcar como usado) si el doc existe
       allow update: if true;
-
-      // Solo los admins autenticados pueden BORRAR
       allow delete: if request.auth != null &&
         request.auth.token.email in [
           'bryanescobar00899@gmail.com',
