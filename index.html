@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BurnLink — Links que se autodestruyen</title>
+  <meta name="description" content="Generá links que se autodestruyen después de un tiempo o un solo uso." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="grid-bg"></div>
+
+  <!-- ── REDIRECT OVERLAY ── -->
+  <div id="redirect-overlay" aria-live="assertive">
+    <div class="redirect-flame">🔥</div>
+    <h2 class="redirect-title">Este link se destruirá...</h2>
+    <p class="redirect-subtitle">DESPUÉS DE ESTA VISITA · SE QUEMA PARA SIEMPRE</p>
+    <div class="redirect-url" id="redirect-dest-url"></div>
+    <div class="redirect-counter" id="redirect-countdown">3</div>
+    <p class="redirect-msg">REDIRIGIENDO EN SEGUNDOS</p>
+  </div>
+
+  <!-- ── EXPIRED OVERLAY ── -->
+  <div id="expired-overlay">
+    <div style="font-size:80px;margin-bottom:24px;filter:grayscale(1);">💀</div>
+    <h2 class="expired-title">Link Destruido</h2>
+    <p class="expired-sub">ESTE LINK YA EXPIRÓ O FUE UTILIZADO</p>
+    <button class="btn-back" onclick="document.getElementById('expired-overlay').classList.remove('active')">
+      Crear Nuevo Link
+    </button>
+  </div>
+
+  <!-- ── MAIN ── -->
+  <div class="container">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="flame">🔥</span>
+        <h1>BurnLink</h1>
+      </div>
+      <p class="tagline">Links que se autodestruyen</p>
+    </header>
+
+    <!-- Form Card -->
+    <div class="card">
+      <p class="section-label">// nuevo link</p>
+
+      <div class="input-group">
+        <label for="dest-url">URL de destino</label>
+        <input type="url" id="dest-url" placeholder="https://tu-sitio.com/algo-secreto" autocomplete="off" />
+      </div>
+
+      <div class="input-group">
+        <label>Duración del link</label>
+        <div class="duration-grid">
+          <button class="dur-btn" data-seconds="300">5 min</button>
+          <button class="dur-btn" data-seconds="1800">30 min</button>
+          <button class="dur-btn active" data-seconds="3600">1 hora</button>
+          <button class="dur-btn" data-seconds="86400">1 día</button>
+          <button class="dur-btn" data-seconds="604800">1 semana</button>
+          <button class="dur-btn" data-seconds="custom">Custom</button>
+        </div>
+        <div class="custom-duration" id="custom-duration">
+          <input type="number" id="custom-value" placeholder="Ej: 45" min="1" />
+          <select id="custom-unit">
+            <option value="60">minutos</option>
+            <option value="3600">horas</option>
+            <option value="86400">días</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Opciones</label>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span>Destruir al primer click</span>
+            <small>El link muere después de ser visitado 1 vez</small>
+          </div>
+          <button class="toggle" id="toggle-oneuse" aria-pressed="false" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span>Cuenta regresiva visible</span>
+            <small>Mostrar timer antes de redirigir</small>
+          </div>
+          <button class="toggle on" id="toggle-countdown" aria-pressed="true" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="btn-generate">
+        🔥 Generar BurnLink
+      </button>
+    </div>
+
+    <!-- Result Card -->
+    <div class="result-card" id="result-card">
+      <div class="result-header">
+        <div class="status-dot"></div>
+        <span>Link activo</span>
+      </div>
+      <div class="link-display">
+        <span class="link-text" id="generated-link"></span>
+        <button class="btn-copy" id="copy-btn">Copiar</button>
+      </div>
+      <div class="meta-row">
+        <div class="meta-chip">⏱ Expira: <strong id="expiry-label"></strong></div>
+        <div class="meta-chip" id="oneuse-chip">🔥 1 sola vez</div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <section class="history-section" id="history-section">
+      <div class="history-header">
+        <span class="history-title">// mis links</span>
+        <button class="btn-clear" id="btn-clear">Limpiar</button>
+      </div>
+      <div id="links-list"></div>
+    </section>
+
+  </div><!-- /container -->
+
+  <script src="app.js"></script>
+</body>
+</html>
