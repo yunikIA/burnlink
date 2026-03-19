@@ -1,19 +1,21 @@
 /* ============================================================
-   BurnLink — app.js  v4  (Firestore base64, sin Storage)
+   BurnLink — app.js  v5  (Cloudinary upload + Firestore)
    ============================================================ */
 'use strict';
 
 const db       = firebase.firestore();
 const linksCol = db.collection('burnlinks');
 
+/* ── Cloudinary config ── */
+const CLOUDINARY_CLOUD  = 'dyaggwmph';
+const CLOUDINARY_PRESET = 'burnlink';
+const CLOUDINARY_URL    = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`;
+
 /* ── State ── */
 let selectedSeconds = 3600;
 let currentType     = 'text';
 let localLinks      = [];
 let selectedFile    = null;
-let selectedFileB64 = null; // base64 del archivo
-
-const MAX_FILE_BYTES = 500 * 1024; // 500KB
 
 const TYPE_LABELS = {
   text:  '✉️ Mensaje',
@@ -44,8 +46,8 @@ function formatCountdown(ms) {
   return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
 }
 function formatBytes(b) {
-  if (b < 1024)     return b + ' B';
-  if (b < 1048576)  return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024)    return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
   return (b/1048576).toFixed(1) + ' MB';
 }
 function getBaseUrl() { return window.location.origin + '/'; }
@@ -68,14 +70,54 @@ function getFileIcon(mime='') {
 }
 
 /* ══════════════════════════════════════════════
-   LEER ARCHIVO COMO BASE64
+   CLOUDINARY UPLOAD con barra de progreso
 ══════════════════════════════════════════════ */
-function readFileAsBase64(file) {
+function uploadToCloudinary(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve(e.target.result); // data:mime;base64,xxx
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const formData = new FormData();
+    formData.append('file',           file);
+    formData.append('upload_preset',  CLOUDINARY_PRESET);
+    formData.append('folder',         'burnlinks');
+
+    const xhr = new XMLHttpRequest();
+
+    // Mostrar barra de progreso
+    const progressCard = document.getElementById('upload-progress-card');
+    const fill         = document.getElementById('progress-bar-fill');
+    const pct          = document.getElementById('progress-pct');
+    progressCard.style.display = 'block';
+
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable) {
+        const p = Math.round((e.loaded / e.total) * 100);
+        fill.style.width = p + '%';
+        pct.textContent  = p + '%';
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      progressCard.style.display = 'none';
+      if (xhr.status === 200) {
+        const res = JSON.parse(xhr.responseText);
+        resolve({
+          url:      res.secure_url,
+          publicId: res.public_id,
+          name:     file.name,
+          size:     file.size,
+          mimeType: file.type,
+        });
+      } else {
+        reject(new Error('Cloudinary upload failed: ' + xhr.responseText));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      progressCard.style.display = 'none';
+      reject(new Error('Error de red al subir archivo'));
+    });
+
+    xhr.open('POST', CLOUDINARY_URL);
+    xhr.send(formData);
   });
 }
 
@@ -98,8 +140,7 @@ document.querySelectorAll('.type-btn').forEach(btn => {
     document.querySelectorAll('.content-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('panel-' + currentType).classList.add('active');
     document.getElementById('content-label').textContent = CONTENT_LABELS[currentType];
-    selectedFile    = null;
-    selectedFileB64 = null;
+    selectedFile = null;
   });
 });
 
@@ -121,32 +162,30 @@ function setupUploadZone(zoneId, inputId, type) {
   });
 }
 
-async function handleFileSelect(file, type) {
-  // Validar tamaño
-  if (file.size > MAX_FILE_BYTES) {
-    showToast(`Máximo 500KB. Este archivo pesa ${formatBytes(file.size)}.`, 'error');
+function handleFileSelect(file, type) {
+  // Límite 50MB para archivos, 10MB para imágenes
+  const maxBytes = (type === 'file') ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    showToast(`Máximo ${type === 'file' ? '50MB' : '10MB'}. Este archivo pesa ${formatBytes(file.size)}.`, 'error');
     return;
   }
-
   selectedFile = file;
 
-  // Mostrar preview visual
   if (type === 'image' || type === 'qr') {
-    const b64 = await readFileAsBase64(file);
-    selectedFileB64 = b64;
-    if (type === 'image') {
-      document.getElementById('preview-img').src = b64;
-      document.getElementById('upload-zone-image').style.display = 'none';
-      document.getElementById('preview-image').style.display = 'block';
-    } else {
-      document.getElementById('preview-qr-img').src = b64;
-      document.getElementById('upload-zone-qr').style.display = 'none';
-      document.getElementById('preview-qr').style.display = 'block';
-    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (type === 'image') {
+        document.getElementById('preview-img').src = e.target.result;
+        document.getElementById('upload-zone-image').style.display = 'none';
+        document.getElementById('preview-image').style.display = 'block';
+      } else {
+        document.getElementById('preview-qr-img').src = e.target.result;
+        document.getElementById('upload-zone-qr').style.display = 'none';
+        document.getElementById('preview-qr').style.display = 'block';
+      }
+    };
+    reader.readAsDataURL(file);
   } else {
-    // Archivo general
-    const b64 = await readFileAsBase64(file);
-    selectedFileB64 = b64;
     document.getElementById('preview-filename').textContent = file.name;
     document.getElementById('preview-filesize').textContent = formatBytes(file.size);
     document.getElementById('upload-zone-file').style.display = 'none';
@@ -155,8 +194,7 @@ async function handleFileSelect(file, type) {
 }
 
 function removeFile(type) {
-  selectedFile    = null;
-  selectedFileB64 = null;
+  selectedFile = null;
   if (type === 'image') {
     document.getElementById('upload-zone-image').style.display = 'flex';
     document.getElementById('preview-image').style.display = 'none';
@@ -217,26 +255,24 @@ async function generateLink() {
     const url = document.getElementById('input-url').value.trim();
     if (!url) { showToast('Ingresá una URL.', 'error'); return; }
     try { new URL(url); } catch {
-      showToast('Ingresá una URL válida (ej: https://ejemplo.com)', 'error'); return;
+      showToast('URL inválida (ej: https://ejemplo.com)', 'error'); return;
     }
     contentData = { url };
 
-  } else if (currentType === 'image' || currentType === 'qr' || currentType === 'file') {
-    if (!selectedFile || !selectedFileB64) {
-      showToast('Seleccioná un archivo primero.', 'error'); return;
-    }
-    contentData = {
-      data:     selectedFileB64,      // base64 data URL
-      name:     selectedFile.name,
-      size:     selectedFile.size,
-      mimeType: selectedFile.type,
-    };
+  } else if (['image', 'qr', 'file'].includes(currentType)) {
+    if (!selectedFile) { showToast('Seleccioná un archivo primero.', 'error'); return; }
   }
 
   const btn = document.getElementById('btn-generate');
-  btn.disabled = true; btn.textContent = 'Guardando...';
+  btn.disabled = true; btn.textContent = 'Generando...';
 
   try {
+    // Subir a Cloudinary si hay archivo
+    if (selectedFile) {
+      btn.textContent = 'Subiendo archivo...';
+      contentData = await uploadToCloudinary(selectedFile);
+    }
+
     const linkData = {
       id, type: currentType, content: contentData,
       expiresAt: Date.now() + secs * 1000,
@@ -259,12 +295,12 @@ async function generateLink() {
     // Reset
     document.getElementById('input-text').value = '';
     document.getElementById('input-url').value  = '';
-    selectedFile = null; selectedFileB64 = null;
+    selectedFile = null;
     ['image','file','qr'].forEach(t => removeFile(t));
 
   } catch(err) {
     console.error(err);
-    showToast('Error al guardar. El archivo puede ser muy grande.', 'error');
+    showToast('Error al generar. Intentá de nuevo.', 'error');
   } finally {
     btn.disabled = false; btn.textContent = '🔥 Generar BurnLink';
   }
@@ -283,7 +319,7 @@ function copyLink() {
 }
 
 /* ══════════════════════════════════════════════
-   IFRAME (para tipo URL)
+   IFRAME (tipo URL)
 ══════════════════════════════════════════════ */
 function openInIframe(url) {
   document.getElementById('viewer-overlay').classList.remove('active');
@@ -312,7 +348,7 @@ function openInIframe(url) {
 }
 
 /* ══════════════════════════════════════════════
-   RENDER CONTENT en el viewer
+   RENDER CONTENT
 ══════════════════════════════════════════════ */
 function renderContent(link) {
   const body = document.getElementById('viewer-body');
@@ -336,7 +372,7 @@ function renderContent(link) {
     body.innerHTML = `
       <div class="viewer-image-wrap">
         <p class="viewer-label">${label}</p>
-        <img src="${content.data}" alt="${label}" class="${cls}" />
+        <img src="${content.url}" alt="${label}" class="${cls}" />
         ${hint}
       </div>`;
 
@@ -352,7 +388,7 @@ function renderContent(link) {
             <div class="viewer-file-size">${formatBytes(content.size)}</div>
           </div>
         </div>
-        <a href="${content.data}" download="${content.name}" class="btn-download">
+        <a href="${content.url}" download="${content.name}" class="btn-download" target="_blank">
           ⬇ Descargar archivo
         </a>
         <p class="viewer-file-warn">⚠️ Descargá ahora — este link no funcionará de nuevo</p>
@@ -389,7 +425,6 @@ async function checkForBurnLink() {
       return;
     }
 
-    // Marcar como usado (transacción atómica)
     if (link.oneUse) {
       try {
         await db.runTransaction(async tx => {
@@ -409,7 +444,7 @@ async function checkForBurnLink() {
 
     setLoading(false);
 
-    // Mostrar countdown luego contenido
+    // Countdown → mostrar contenido
     const viewerOverlay   = document.getElementById('viewer-overlay');
     const countdownScreen = document.getElementById('viewer-countdown-screen');
     const contentScreen   = document.getElementById('viewer-content-screen');
@@ -482,7 +517,7 @@ function startListener() {
 }
 
 /* ══════════════════════════════════════════════
-   EVENTS + INIT
+   INIT
 ══════════════════════════════════════════════ */
 document.getElementById('btn-generate').addEventListener('click', generateLink);
 document.getElementById('copy-btn').addEventListener('click', copyLink);
