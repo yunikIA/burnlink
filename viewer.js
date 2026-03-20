@@ -1,6 +1,5 @@
 /* ============================================================
-   BurnLink — viewer.js
-   Solo maneja abrir links. Sin formulario, sin crear links.
+   BurnLink — viewer.js  (solo viewer, sin formulario)
    ============================================================ */
 'use strict';
 
@@ -10,13 +9,11 @@ const linksCol = db.collection('burnlinks');
 function setLoading(on) {
   document.getElementById('loading-overlay').classList.toggle('active', on);
 }
-
 function formatBytes(b) {
   if (b < 1024)    return b + ' B';
   if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
   return (b/1048576).toFixed(1) + ' MB';
 }
-
 function getFileIcon(mime='') {
   if (mime.includes('pdf'))   return '📄';
   if (mime.includes('video')) return '🎥';
@@ -51,7 +48,7 @@ function openInIframe(url) {
   frame.onload = () => { loaded = true; clearTimeout(blockTimer); };
 }
 
-/* ── Render contenido según tipo ── */
+/* ── Render contenido ── */
 function renderContent(link) {
   const body = document.getElementById('viewer-body');
   const { type, content } = link;
@@ -60,7 +57,7 @@ function renderContent(link) {
     body.innerHTML = `
       <div class="viewer-text-wrap">
         <p class="viewer-label">MENSAJE SECRETO</p>
-        <div class="viewer-text">${content.text.replace(/\n/g,'<br>')}</div>
+        <div class="viewer-text">${content.text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>
       </div>`;
 
   } else if (type === 'url') {
@@ -88,22 +85,21 @@ function renderContent(link) {
             <span></span><span></span><span></span><span></span><span></span>
           </div>
           <p class="viewer-media-name">${content.name}</p>
-          <audio id="secret-audio" controls autoplay style="width:100%;margin-top:16px;border-radius:8px;">
+          <audio id="secret-audio" controls style="width:100%;margin-top:16px;border-radius:8px;">
             <source src="${content.url}" type="${content.mimeType}">
           </audio>
         </div>
       </div>`;
-    // Autoplay con interacción del usuario ya fue (click en countdown)
     setTimeout(() => {
       const a = document.getElementById('secret-audio');
       if (a) a.play().catch(() => {});
-    }, 300);
+    }, 400);
 
   } else if (type === 'video') {
     body.innerHTML = `
       <div class="viewer-media-wrap">
         <p class="viewer-label">VIDEO SECRETO 🎥</p>
-        <video id="secret-video" controls autoplay playsinline
+        <video id="secret-video" controls playsinline
           style="max-width:100%;max-height:75vh;border-radius:12px;border:1px solid var(--border);display:block;margin:0 auto;">
           <source src="${content.url}" type="${content.mimeType}">
         </video>
@@ -112,7 +108,7 @@ function renderContent(link) {
     setTimeout(() => {
       const v = document.getElementById('secret-video');
       if (v) v.play().catch(() => {});
-    }, 300);
+    }, 400);
 
   } else if (type === 'file') {
     const icon = getFileIcon(content.mimeType);
@@ -134,24 +130,36 @@ function renderContent(link) {
   }
 }
 
-/* ── Main: verificar ?id= ── */
+/* ── Mostrar pantalla genérica ── */
+function showGeneric() {
+  setLoading(false);
+  const g = document.getElementById('generic-screen');
+  if (g) { g.style.display = 'flex'; }
+}
+
+/* ── Main ── */
 (async function init() {
-  const params = new URLSearchParams(window.location.search);
-  const id     = params.get('id');
-
-  // Sin ?id= → mostrar página genérica
-  if (!id) {
-    setLoading(false);
-    document.getElementById('generic-screen').style.display = 'flex';
-    return;
-  }
-
-  // Limpiar URL
-  history.replaceState(null, '', window.location.pathname);
-  setLoading(true);
+  // Timeout de seguridad: si en 8 segundos no pasa nada, mostrar genérica
+  const safetyTimer = setTimeout(() => {
+    showGeneric();
+  }, 8000);
 
   try {
+    const params = new URLSearchParams(window.location.search);
+    const id     = params.get('id');
+
+    // Sin ?id= → página genérica
+    if (!id) {
+      clearTimeout(safetyTimer);
+      showGeneric();
+      return;
+    }
+
+    // Limpiar URL inmediatamente
+    history.replaceState(null, '', '/');
+
     const docSnap = await linksCol.doc(id).get();
+    clearTimeout(safetyTimer);
 
     if (!docSnap.exists) {
       setLoading(false);
@@ -168,7 +176,7 @@ function renderContent(link) {
       return;
     }
 
-    // Marcar como usado
+    // Marcar como usado (atómico)
     if (link.oneUse) {
       try {
         await db.runTransaction(async tx => {
@@ -196,6 +204,7 @@ function renderContent(link) {
 
     let count = 3;
     document.getElementById('viewer-counter').textContent = count;
+
     const interval = setInterval(() => {
       count--;
       document.getElementById('viewer-counter').textContent = count;
@@ -208,7 +217,9 @@ function renderContent(link) {
     }, 1000);
 
   } catch(err) {
-    setLoading(false);
-    console.error(err);
+    clearTimeout(safetyTimer);
+    console.error('Viewer error:', err);
+    // En caso de error mostrar genérica, no quedarse trabado
+    showGeneric();
   }
 })();
