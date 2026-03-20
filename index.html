@@ -8,86 +8,68 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #111;
-      --border: #222;
-      --accent: #ff3b1f;
-      --text: #f0ece4;
-      --muted: #555;
-      --mono: 'Space Mono', monospace;
-      --sans: 'Syne', sans-serif;
-    }
-    * { margin:0; padding:0; box-sizing:border-box; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    /* Grid background */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255,59,31,.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,59,31,.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-    }
-
-    .wrap {
-      text-align: center;
-      padding: 24px;
-      position: relative;
-      z-index: 1;
-      animation: fadeIn .6s ease both;
-    }
-
-    .icon { font-size: 64px; margin-bottom: 24px; }
-
-    h1 {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -1px;
-      margin-bottom: 12px;
-      color: var(--text);
-    }
-
-    p {
-      font-family: var(--mono);
-      font-size: 12px;
-      color: var(--muted);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      line-height: 1.8;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="wrap">
-    <div class="icon">🔒</div>
-    <h1>Enlace no disponible</h1>
-    <p>Este enlace no existe<br>o ya fue utilizado</p>
+
+  <div class="grid-bg"></div>
+
+  <!-- ── LOADING ── -->
+  <div id="loading-overlay" class="active">
+    <div class="loading-flame">🔥</div>
+    <p class="loading-text">Verificando...</p>
   </div>
 
-  <!-- Firebase para verificar ?id= -->
+  <!-- ── PÁGINA GENÉRICA (default, sin ?id=) ── -->
+  <div id="generic-screen">
+    <div style="text-align:center;padding:24px;position:relative;z-index:1;">
+      <div style="font-size:64px;margin-bottom:24px;">🔒</div>
+      <h1 style="font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:12px;">Enlace no disponible</h1>
+      <p style="font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;line-height:1.8;">Este enlace no existe<br>o ya fue utilizado</p>
+    </div>
+  </div>
+
+  <!-- ── EXPIRED OVERLAY ── -->
+  <div id="expired-overlay">
+    <div style="font-size:80px;margin-bottom:24px;filter:grayscale(1);">💀</div>
+    <h2 class="expired-title">Contenido Destruido</h2>
+    <p class="expired-sub">ESTE LINK YA EXPIRÓ O FUE UTILIZADO</p>
+  </div>
+
+  <!-- ── IFRAME VIEWER (tipo URL) ── -->
+  <div id="iframe-overlay">
+    <iframe id="content-frame"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+      allowfullscreen></iframe>
+    <div id="iframe-fallback">
+      <div style="font-size:56px;margin-bottom:16px;">⚠️</div>
+      <h2 class="redirect-title" style="font-size:22px;">Este sitio no permite vista previa</h2>
+      <p class="redirect-subtitle">SE ABRIRÁ EN ESTA PESTAÑA</p>
+      <div class="redirect-counter" id="fallback-countdown">3</div>
+      <p class="redirect-msg">REDIRIGIENDO...</p>
+    </div>
+  </div>
+
+  <!-- ── COUNTDOWN OVERLAY ── -->
+  <div id="viewer-overlay">
+    <div id="viewer-countdown-screen">
+      <div class="redirect-flame">🔥</div>
+      <h2 class="redirect-title">Contenido secreto</h2>
+      <p class="redirect-subtitle">SE DESTRUIRÁ DESPUÉS DE ESTA VISITA</p>
+      <div class="redirect-counter" id="viewer-counter">3</div>
+      <p class="redirect-msg">REVELANDO EN SEGUNDOS</p>
+    </div>
+    <div id="viewer-content-screen">
+      <div class="viewer-topbar">
+        <div class="viewer-burn-badge">🔥 Este contenido se destruyó al verlo</div>
+      </div>
+      <div id="viewer-body"></div>
+    </div>
+  </div>
+
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
   <script>
     const firebaseConfig = {
       apiKey:            "AIzaSyBLqHcWApjbbqjasgk-H4bGg5KN5Bf-Fss",
@@ -98,13 +80,7 @@
       appId:             "1:102519825848:web:6a3d1ac53fbff5de611b4d"
     };
     firebase.initializeApp(firebaseConfig);
-
-    // Si hay ?id= redirigir al viewer
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    if (id) {
-      window.location.replace('/create?id=' + id);
-    }
   </script>
+  <script src="viewer.js"></script>
 </body>
 </html>

@@ -1239,3 +1239,14 @@ textarea::placeholder { color: #444; }
 @media (max-width: 560px) {
   .type-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
+
+/* ── Generic screen (index sin ?id=) ── */
+#generic-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
