@@ -50,7 +50,7 @@ function formatBytes(b) {
   if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
   return (b/1048576).toFixed(1) + ' MB';
 }
-function getBaseUrl() { return window.location.origin + '/'; }
+function getBaseUrl() { return window.location.origin + '/'; }  // links apuntan a /
 function setLoading(on) {
   document.getElementById('loading-overlay').classList.toggle('active', on);
 }
