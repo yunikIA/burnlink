@@ -78,6 +78,42 @@ function renderContent(link) {
         ${hint}
       </div>`;
 
+  } else if (type === 'audio') {
+    body.innerHTML = `
+      <div class="viewer-media-wrap">
+        <p class="viewer-label">AUDIO SECRETO 🎵</p>
+        <div class="viewer-audio-card">
+          <div class="audio-wave">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="viewer-media-name">${content.name}</p>
+          <audio id="secret-audio" controls autoplay style="width:100%;margin-top:16px;border-radius:8px;">
+            <source src="${content.url}" type="${content.mimeType}">
+          </audio>
+        </div>
+      </div>`;
+    // Autoplay con interacción del usuario ya fue (click en countdown)
+    setTimeout(() => {
+      const a = document.getElementById('secret-audio');
+      if (a) a.play().catch(() => {});
+    }, 300);
+
+  } else if (type === 'video') {
+    body.innerHTML = `
+      <div class="viewer-media-wrap">
+        <p class="viewer-label">VIDEO SECRETO 🎥</p>
+        <video id="secret-video" controls autoplay playsinline
+          style="max-width:100%;max-height:75vh;border-radius:12px;border:1px solid var(--border);display:block;margin:0 auto;">
+          <source src="${content.url}" type="${content.mimeType}">
+        </video>
+        <p class="viewer-media-name" style="margin-top:12px;">${content.name}</p>
+      </div>`;
+    setTimeout(() => {
+      const v = document.getElementById('secret-video');
+      if (v) v.play().catch(() => {});
+    }, 300);
+
   } else if (type === 'file') {
     const icon = getFileIcon(content.mimeType);
     body.innerHTML = `

@@ -1250,3 +1250,73 @@ textarea::placeholder { color: #444; }
   justify-content: center;
   background: var(--bg);
 }
+
+/* ── Audio / Video viewer ── */
+.viewer-media-wrap {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+}
+
+.viewer-media-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  letter-spacing: 1px;
+}
+
+.viewer-audio-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  animation: fadeUp .5s ease both;
+}
+
+/* Waveform animation */
+.audio-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 48px;
+  margin-bottom: 16px;
+}
+
+.audio-wave span {
+  display: block;
+  width: 4px;
+  background: var(--accent);
+  border-radius: 99px;
+  animation: wave 1.2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255,59,31,.5);
+}
+
+.audio-wave span:nth-child(1)  { height: 16px; animation-delay: 0s;    }
+.audio-wave span:nth-child(2)  { height: 32px; animation-delay: .1s;   }
+.audio-wave span:nth-child(3)  { height: 44px; animation-delay: .2s;   }
+.audio-wave span:nth-child(4)  { height: 28px; animation-delay: .3s;   }
+.audio-wave span:nth-child(5)  { height: 48px; animation-delay: .4s;   }
+.audio-wave span:nth-child(6)  { height: 36px; animation-delay: .3s;   }
+.audio-wave span:nth-child(7)  { height: 44px; animation-delay: .2s;   }
+.audio-wave span:nth-child(8)  { height: 24px; animation-delay: .1s;   }
+.audio-wave span:nth-child(9)  { height: 38px; animation-delay: .05s;  }
+.audio-wave span:nth-child(10) { height: 18px; animation-delay: 0s;    }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(1);   opacity: 1;   }
+  50%       { transform: scaleY(.3); opacity: .5;  }
+}
+
+/* Type grid 7 cols en desktop */
+.type-grid {
+  grid-template-columns: repeat(7, 1fr) !important;
+}
+
+@media (max-width: 640px) {
+  .type-grid { grid-template-columns: repeat(4, 1fr) !important; }
+}
+@media (max-width: 400px) {
+  .type-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}

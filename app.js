@@ -23,6 +23,8 @@ const TYPE_LABELS = {
   image: '🖼️ Imagen',
   file:  '📎 Archivo',
   qr:    '◼️ QR',
+  audio: '🎵 Audio',
+  video: '🎥 Video',
 };
 
 /* ══════════════════════════════════════════════
@@ -130,6 +132,8 @@ const CONTENT_LABELS = {
   image: '// subir imagen',
   file:  '// subir archivo',
   qr:    '// subir código QR',
+  audio: '// subir audio',
+  video: '// subir video',
 };
 
 document.querySelectorAll('.type-btn').forEach(btn => {
@@ -171,6 +175,21 @@ function handleFileSelect(file, type) {
   }
   selectedFile = file;
 
+  if (type === 'audio' || type === 'video') {
+    const maxBytes = type === 'video' ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      showToast(`Máximo ${type === 'video' ? '100MB' : '20MB'}. Este archivo pesa ${formatBytes(file.size)}.`, 'error');
+      return;
+    }
+    selectedFile = file;
+    const nameEl = document.getElementById(`preview-${type}-name`);
+    const sizeEl = document.getElementById(`preview-${type}-size`);
+    nameEl.textContent = file.name;
+    sizeEl.textContent = formatBytes(file.size);
+    document.getElementById(`upload-zone-${type}`).style.display = 'none';
+    document.getElementById(`preview-${type}`).style.display = 'block';
+    return;
+  }
   if (type === 'image' || type === 'qr') {
     const reader = new FileReader();
     reader.onload = e => {
@@ -207,12 +226,22 @@ function removeFile(type) {
     document.getElementById('upload-zone-qr').style.display = 'flex';
     document.getElementById('preview-qr').style.display = 'none';
     document.getElementById('input-qr').value = '';
+  } else if (type === 'audio') {
+    document.getElementById('upload-zone-audio').style.display = 'flex';
+    document.getElementById('preview-audio').style.display = 'none';
+    document.getElementById('input-audio').value = '';
+  } else if (type === 'video') {
+    document.getElementById('upload-zone-video').style.display = 'flex';
+    document.getElementById('preview-video').style.display = 'none';
+    document.getElementById('input-video').value = '';
   }
 }
 
 setupUploadZone('upload-zone-image', 'input-image', 'image');
 setupUploadZone('upload-zone-file',  'input-file',  'file');
 setupUploadZone('upload-zone-qr',    'input-qr',    'qr');
+setupUploadZone('upload-zone-audio', 'input-audio', 'audio');
+setupUploadZone('upload-zone-video', 'input-video', 'video');
 
 /* ══════════════════════════════════════════════
    DURATION SELECTOR
@@ -259,7 +288,7 @@ async function generateLink() {
     }
     contentData = { url };
 
-  } else if (['image', 'qr', 'file'].includes(currentType)) {
+  } else if (['image', 'qr', 'file', 'audio', 'video'].includes(currentType)) {
     if (!selectedFile) { showToast('Seleccioná un archivo primero.', 'error'); return; }
   }
 
@@ -296,7 +325,7 @@ async function generateLink() {
     document.getElementById('input-text').value = '';
     document.getElementById('input-url').value  = '';
     selectedFile = null;
-    ['image','file','qr'].forEach(t => removeFile(t));
+    ['image','file','qr','audio','video'].forEach(t => removeFile(t));
 
   } catch(err) {
     console.error(err);
