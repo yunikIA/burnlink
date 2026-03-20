@@ -286,6 +286,10 @@ const CL_CLOUD  = 'dyaggwmph';
 const CL_PRESET = 'burnlink';
 const CL_URL    = `https://api.cloudinary.com/v1_1/${CL_CLOUD}/auto/upload`;
 
+/* Uploadcare — para video y audio */
+const UC_KEY = '009a15bc6e596325653d';
+const UC_URL = 'https://upload.uploadcare.com/base/';
+
 let selSecs = 3600;
 let curType = 'text';
 let selFile = null;
@@ -385,52 +389,89 @@ function getSecs(){
 }
 
 /* Cloudinary upload */
-// Leer archivo como base64
-function readB64(file){
+/* ── Upload inteligente según tipo ──
+   Imágenes/archivos → Cloudinary
+   Video/Audio       → Uploadcare
+*/
+function showProgress(pct, label){
+  document.getElementById('progressCard').style.display='block';
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('progressPct').textContent=label||pct+'%';
+}
+function hideProgress(){
+  document.getElementById('progressCard').style.display='none';
+  document.getElementById('progressFill').style.width='0%';
+}
+
+// Uploadcare — soporta video y audio sin restricciones
+async function uploadUC(file){
+  showProgress(10,'Preparando...');
+  const fd=new FormData();
+  fd.append('UPLOADCARE_PUB_KEY', UC_KEY);
+  fd.append('UPLOADCARE_STORE', '1');
+  fd.append('file', file);
+
   return new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=e=>res(e.target.result);
-    r.onerror=rej;
-    r.readAsDataURL(file);
+    const xhr=new XMLHttpRequest();
+    xhr.upload.addEventListener('progress',e=>{
+      if(e.lengthComputable){
+        const p=Math.round(e.loaded/e.total*100);
+        showProgress(p, p+'%');
+      }
+    });
+    xhr.addEventListener('load',()=>{
+      hideProgress();
+      if(xhr.status===200){
+        const r=JSON.parse(xhr.responseText);
+        // Uploadcare devuelve UUID, construimos la URL
+        const url=`https://ucarecdn.com/${r.file}/`;
+        res({url, name:file.name, size:file.size, mimeType:file.type});
+      }else{
+        console.error('Uploadcare error:',xhr.responseText);
+        rej(new Error('Upload failed: '+xhr.status));
+      }
+    });
+    xhr.addEventListener('error',()=>{hideProgress();rej(new Error('Network error'));});
+    xhr.open('POST', UC_URL);
+    xhr.send(fd);
   });
 }
 
-// Upload a Cloudinary via fetch con base64
+// Cloudinary — para imágenes y archivos generales
 async function uploadCL(file){
   const mime=file.type;
-  let resourceType='auto';
-  if(mime.startsWith('image/')) resourceType='image';
-  else if(mime.startsWith('video/')||mime.startsWith('audio/')) resourceType='video';
+  const resourceType=mime.startsWith('image/')?'image':'auto';
   const uploadUrl=`https://api.cloudinary.com/v1_1/${CL_CLOUD}/${resourceType}/upload`;
 
-  // Mostrar progreso
-  document.getElementById('progressCard').style.display='block';
-  document.getElementById('progressFill').style.width='10%';
-  document.getElementById('progressPct').textContent='Leyendo...';
+  showProgress(10,'Preparando...');
 
-  // Convertir a base64
-  const b64=await readB64(file);
+  return new Promise((res,rej)=>{
+    const fd=new FormData();
+    fd.append('file',file);
+    fd.append('upload_preset',CL_PRESET);
+    fd.append('folder','burnlinks');
+    const xhr=new XMLHttpRequest();
+    xhr.upload.addEventListener('progress',e=>{
+      if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);showProgress(p,p+'%');}
+    });
+    xhr.addEventListener('load',()=>{
+      hideProgress();
+      if(xhr.status===200){const r=JSON.parse(xhr.responseText);res({url:r.secure_url,name:file.name,size:file.size,mimeType:file.type});}
+      else{console.error('Cloudinary error:',xhr.responseText);rej(new Error('Upload failed: '+xhr.status));}
+    });
+    xhr.addEventListener('error',()=>{hideProgress();rej(new Error('Network error'));});
+    xhr.open('POST',uploadUrl);xhr.send(fd);
+  });
+}
 
-  document.getElementById('progressFill').style.width='40%';
-  document.getElementById('progressPct').textContent='Subiendo...';
-
-  const fd=new FormData();
-  fd.append('file', b64);          // base64 data URI
-  fd.append('upload_preset', CL_PRESET);
-  fd.append('folder','burnlinks');
-
-  const resp = await fetch(uploadUrl, {method:'POST', body:fd});
-
-  document.getElementById('progressCard').style.display='none';
-
-  if(!resp.ok){
-    const err=await resp.text();
-    console.error('Cloudinary error:',err);
-    throw new Error('Upload failed: '+resp.status);
+// Router principal de upload
+async function uploadFile(file){
+  const mime=file.type;
+  if(mime.startsWith('video/')||mime.startsWith('audio/')){
+    return await uploadUC(file);   // Uploadcare para video/audio
+  }else{
+    return await uploadCL(file);   // Cloudinary para imagen/archivo
   }
-  const r=await resp.json();
-  document.getElementById('progressFill').style.width='100%';
-  return {url:r.secure_url, name:file.name, size:file.size, mimeType:file.type};
 }
 
 /* Generate */
@@ -465,7 +506,7 @@ async function generate(){
   btn.disabled=true;btn.textContent='Generando...';
 
   try{
-    if(selFile){btn.textContent='Subiendo...';content=await uploadCL(selFile);}
+    if(selFile){btn.textContent='Subiendo...';content=await uploadFile(selFile);}
     await col.doc(id).set({id,type:curType,content,expiresAt:Date.now()+secs*1000,oneUse,used:false,created:Date.now(),duration:secs});
 
     const url=window.location.origin+'/?id='+id;
